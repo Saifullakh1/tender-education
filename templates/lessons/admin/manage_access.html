@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+
+{% block title %}Управление доступом - {{ lesson.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h2 mb-0">
+                    <i class="fas fa-key me-2"></i>Управление доступом
+                </h1>
+                <p class="text-muted mb-0">{{ lesson.title }}</p>
+            </div>
+            <a href="{% url 'lessons:admin_lesson_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Назад к урокам
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Предоставление доступа -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-plus me-2"></i>Предоставить доступ
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.user.id_for_label }}" class="form-label">
+                            <i class="fas fa-user me-2"></i>Пользователь *
+                        </label>
+                        {{ form.user }}
+                        {% if form.user.errors %}
+                            <div class="text-danger mt-1">
+                                {% for error in form.user.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.expires_at.id_for_label }}" class="form-label">
+                            <i class="fas fa-calendar-times me-2"></i>Дата истечения (необязательно)
+                        </label>
+                        {{ form.expires_at }}
+                        {% if form.expires_at.errors %}
+                            <div class="text-danger mt-1">
+                                {% for error in form.expires_at.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Оставьте пустым для бессрочного доступа
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-plus me-2"></i>Предоставить доступ
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Текущие доступы -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>Текущие доступы
+                    <span class="badge bg-primary ms-2">{{ current_accesses.count }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if current_accesses %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Пользователь</th>
+                                <th>Email</th>
+                                <th>Предоставил</th>
+                                <th>Дата предоставления</th>
+                                <th>Истекает</th>
+                                <th>Статус</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for access in current_accesses %}
+                            <tr>
+                                <td>
+                                    <strong>{{ access.user.username }}</strong>
+                                    {% if access.user.first_name or access.user.last_name %}
+                                    <br><small class="text-muted">
+                                        {{ access.user.first_name }} {{ access.user.last_name }}
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ access.user.email|default:"—" }}</td>
+                                <td>
+                                    {% if access.granted_by %}
+                                    {{ access.granted_by.username }}
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ access.granted_at|date:"d.m.Y H:i" }}</td>
+                                <td>
+                                    {% if access.expires_at %}
+                                    {{ access.expires_at|date:"d.m.Y H:i" }}
+                                    {% else %}
+                                    <span class="text-success">Бессрочно</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if access.is_valid %}
+                                    <span class="badge bg-success">Действителен</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Истек</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if access.is_active %}
+                                    <a href="{% url 'lessons:revoke_access' access.id %}" 
+                                       class="btn btn-sm btn-outline-danger"
+                                       onclick="return confirm('Вы уверены, что хотите отозвать доступ у пользователя {{ access.user.username }}?')">
+                                        <i class="fas fa-times me-1"></i>Отозвать
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">Отозван</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Нет предоставленных доступов</h5>
+                    <p class="text-muted">Используйте форму слева, чтобы предоставить доступ пользователям.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Статистика доступа
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h3 text-primary">{{ current_accesses.count }}</div>
+                            <div class="text-muted">Всего доступов</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h3 text-success">
+                                {{ current_accesses|length|add:"0" }}
+                            </div>
+                            <div class="text-muted">Активных</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h3 text-warning">
+                                {% for access in current_accesses %}
+                                    {% if access.expires_at and access.is_valid %}
+                                        {% if forloop.first %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="text-muted">С ограниченным сроком</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h3 text-info">
+                                {% for access in current_accesses %}
+                                    {% if not access.expires_at and access.is_valid %}
+                                        {% if forloop.first %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="text-muted">Бессрочных</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% load lesson_extras %}
+
+{% block title %}Видео Уроки{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 mb-0">
+                <i class="fas fa-play-circle me-2"></i>Видео Уроки
+            </h1>
+            {% if user.is_staff %}
+            <a href="{% url 'lessons:admin_lesson_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Добавить урок
+            </a>
+            {% endif %}
+        </div>
+        
+        {% if user.is_staff %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Вы видите все уроки как администратор. Обычные пользователи видят только уроки с предоставленным доступом.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Фильтры -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title mb-3">
+                    <i class="fas fa-filter me-2"></i>Фильтры
+                </h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">Все категории</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="sortFilter">
+                            <option value="newest">Сначала новые</option>
+                            <option value="oldest">Сначала старые</option>
+                            <option value="title">По названию</option>
+                            <option value="duration">По длительности</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchInput" placeholder="Поиск по названию...">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Список уроков -->
+<div class="row" id="lessonsContainer">
+    {% for lesson in lessons %}
+    <div class="col-md-6 col-lg-4 mb-4 lesson-item" 
+         data-category="{{ lesson.category.id }}" 
+         data-title="{{ lesson.title|lower }}"
+         data-duration="{{ lesson.duration }}"
+         data-created="{{ lesson.created_at|date:'Y-m-d' }}">
+        <div class="card lesson-card h-100">
+            {% if lesson.thumbnail %}
+            <img src="{{ lesson.thumbnail.url }}" class="card-img-top" alt="{{ lesson.title }}" style="height: 200px; object-fit: cover;">
+            {% else %}
+            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                <i class="fas fa-video fa-3x text-muted"></i>
+            </div>
+            {% endif %}
+            
+            <div class="card-body">
+                <h5 class="card-title">{{ lesson.title }}</h5>
+                <p class="card-text text-muted">{{ lesson.description|truncatewords:20 }}</p>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-primary">{{ lesson.category.name }}</span>
+                    <span class="text-muted">
+                        <i class="fas fa-clock me-1"></i>{{ lesson.get_duration_display }}
+                    </span>
+                </div>
+                
+                {% if not user.is_staff and lesson.id in user_progress %}
+                    {% with progress=user_progress|get_item:lesson.id %}
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">Прогресс</small>
+                            <small class="text-muted">{{ progress.get_progress_percentage|floatformat:1 }}%</small>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{ progress.get_progress_percentage }}%"></div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                {% endif %}
+            </div>
+            
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="fas fa-calendar me-1"></i>{{ lesson.created_at|date:"d.m.Y" }}
+                    </small>
+                    <a href="{% url 'lessons:lesson_detail' lesson.pk %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-play me-1"></i>Смотреть
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-video-slash fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">Уроки не найдены</h4>
+            <p class="text-muted">
+                {% if user.is_staff %}
+                    Создайте первый урок, чтобы начать обучение.
+                {% else %}
+                    У вас пока нет доступа к урокам. Обратитесь к администратору.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if is_paginated %}
+<nav aria-label="Навигация по страницам">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1">
+                    <i class="fas fa-angle-double-left"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                    <i class="fas fa-angle-left"></i>
+                </a>
+            </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                    <i class="fas fa-angle-right"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                    <i class="fas fa-angle-double-right"></i>
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    const sortFilter = document.getElementById('sortFilter');
+    const searchInput = document.getElementById('searchInput');
+    const lessonsContainer = document.getElementById('lessonsContainer');
+    const lessonItems = document.querySelectorAll('.lesson-item');
+    
+    function filterLessons() {
+        const category = categoryFilter.value;
+        const search = searchInput.value.toLowerCase();
+        const sort = sortFilter.value;
+        
+        let visibleItems = [];
+        
+        lessonItems.forEach(item => {
+            const itemCategory = item.dataset.category;
+            const itemTitle = item.dataset.title;
+            const itemDuration = parseInt(item.dataset.duration);
+            const itemCreated = item.dataset.created;
+            
+            let visible = true;
+            
+            // Фильтр по категории
+            if (category && itemCategory !== category) {
+                visible = false;
+            }
+            
+            // Фильтр по поиску
+            if (search && !itemTitle.includes(search)) {
+                visible = false;
+            }
+            
+            if (visible) {
+                visibleItems.push({
+                    element: item,
+                    title: itemTitle,
+                    duration: itemDuration,
+                    created: itemCreated
+                });
+            }
+            
+            item.style.display = visible ? 'block' : 'none';
+        });
+        
+        // Сортировка
+        visibleItems.sort((a, b) => {
+            switch(sort) {
+                case 'title':
+                    return a.title.localeCompare(b.title);
+                case 'duration':
+                    return a.duration - b.duration;
+                case 'oldest':
+                    return a.created.localeCompare(b.created);
+                case 'newest':
+                default:
+                    return b.created.localeCompare(a.created);
+            }
+        });
+        
+        // Переупорядочиваем элементы
+        visibleItems.forEach(item => {
+            lessonsContainer.appendChild(item.element);
+        });
+    }
+    
+    categoryFilter.addEventListener('change', filterLessons);
+    sortFilter.addEventListener('change', filterLessons);
+    searchInput.addEventListener('input', filterLessons);
+});
+</script>
+{% endblock %} 

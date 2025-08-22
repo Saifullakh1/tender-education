@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ lesson.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Видео плеер -->
+        <div class="card mb-4">
+            <div class="card-body p-0">
+                <div class="video-container">
+                    <video id="videoPlayer" controls preload="metadata" class="w-100">
+                        <source src="{{ lesson.video_file.url }}" type="video/mp4">
+                        Ваш браузер не поддерживает воспроизведение видео.
+                    </video>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Информация об уроке -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h1 class="h3 mb-0">{{ lesson.title }}</h1>
+                    <span class="badge bg-primary fs-6">{{ lesson.category.name }}</span>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p class="text-muted mb-1">
+                            <i class="fas fa-clock me-2"></i>Длительность: {{ lesson.get_duration_display }}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="text-muted mb-1">
+                            <i class="fas fa-calendar me-2"></i>Добавлен: {{ lesson.created_at|date:"d.m.Y" }}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="progress mb-3" style="height: 10px;">
+                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <small class="text-muted" id="progressText">Прогресс: 0%</small>
+                    <small class="text-muted" id="timeText">0:00 / {{ lesson.get_duration_display }}</small>
+                </div>
+                
+                <div class="description">
+                    <h5>Описание урока</h5>
+                    <p>{{ lesson.description|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Прогресс обучения -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>Ваш прогресс
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div class="progress-circle" id="progressCircle">
+                        <span class="progress-percentage" id="progressPercentage">0%</span>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Просмотрено</span>
+                    <span id="watchedTime">0:00</span>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Осталось</span>
+                    <span id="remainingTime">{{ lesson.get_duration_display }}</span>
+                </div>
+                
+                {% if progress.is_completed %}
+                <div class="alert alert-success mt-3">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Урок завершен!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Навигация -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-arrow-left me-2"></i>Навигация
+                </h5>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'lessons:lesson_list' %}" class="btn btn-outline-primary w-100 mb-2">
+                    <i class="fas fa-list me-2"></i>К списку уроков
+                </a>
+                
+                {% if user.is_staff %}
+                <a href="{% url 'lessons:admin_lesson_edit' lesson.pk %}" class="btn btn-outline-secondary w-100 mb-2">
+                    <i class="fas fa-edit me-2"></i>Редактировать
+                </a>
+                <a href="{% url 'lessons:manage_user_access' lesson.pk %}" class="btn btn-outline-info w-100">
+                    <i class="fas fa-users me-2"></i>Управление доступом
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.progress-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: conic-gradient(var(--secondary-color) 0deg, #ecf0f1 0deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    position: relative;
+}
+
+.progress-circle::before {
+    content: '';
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: white;
+    position: absolute;
+}
+
+.progress-percentage {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--secondary-color);
+    z-index: 1;
+    position: relative;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('videoPlayer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const timeText = document.getElementById('timeText');
+    const progressCircle = document.getElementById('progressCircle');
+    const progressPercentage = document.getElementById('progressPercentage');
+    const watchedTime = document.getElementById('watchedTime');
+    const remainingTime = document.getElementById('remainingTime');
+    
+    let updateTimer;
+    const lessonId = {{ lesson.id }};
+    const totalDuration = {{ lesson.duration }};
+    
+    function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+    
+    function updateProgress() {
+        const currentTime = video.currentTime;
+        const percentage = (currentTime / totalDuration) * 100;
+        
+        // Обновляем прогресс-бар
+        progressBar.style.width = percentage + '%';
+        progressText.textContent = `Прогресс: ${percentage.toFixed(1)}%`;
+        timeText.textContent = `${formatTime(currentTime)} / ${formatTime(totalDuration)}`;
+        
+        // Обновляем круговой прогресс
+        const degrees = (percentage / 100) * 360;
+        progressCircle.style.background = `conic-gradient(var(--secondary-color) ${degrees}deg, #ecf0f1 ${degrees}deg)`;
+        progressPercentage.textContent = `${percentage.toFixed(0)}%`;
+        
+        // Обновляем время
+        watchedTime.textContent = formatTime(currentTime);
+        remainingTime.textContent = formatTime(totalDuration - currentTime);
+        
+        // Отправляем прогресс на сервер каждые 10 секунд
+        if (Math.floor(currentTime) % 10 === 0) {
+            updateProgressOnServer(currentTime);
+        }
+    }
+    
+    function updateProgressOnServer(watchedSeconds) {
+        fetch(`/lesson/${lessonId}/progress/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: `watched_seconds=${Math.floor(watchedSeconds)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.is_completed) {
+                // Показываем уведомление о завершении
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show';
+                alert.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>
+                    Поздравляем! Вы завершили этот урок.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('main').insertBefore(alert, document.querySelector('main').firstChild);
+            }
+        })
+        .catch(error => console.error('Ошибка обновления прогресса:', error));
+    }
+    
+    // Обработчики событий видео
+    video.addEventListener('timeupdate', updateProgress);
+    video.addEventListener('loadedmetadata', function() {
+        // Инициализируем прогресс при загрузке видео
+        updateProgress();
+    });
+    
+    // Добавляем CSRF токен для AJAX запросов
+    const csrfToken = document.createElement('input');
+    csrfToken.type = 'hidden';
+    csrfToken.name = 'csrfmiddlewaretoken';
+    csrfToken.value = '{{ csrf_token }}';
+    document.body.appendChild(csrfToken);
+    
+    // Инициализируем прогресс при загрузке страницы
+    updateProgress();
+});
+</script>
+{% endblock %} 
